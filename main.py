@@ -3,17 +3,15 @@ import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import csv
 from datetime import datetime
-import smtplib
-from email.message import EmailMessage
 from io import StringIO, BytesIO
+import base64
+import requests
+import os
 app = Flask(__name__)
 app.secret_key = "geheimer_schluessel"
 
 ADMIN_EMAIL = "christian.warschburger@gmx.de"
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 465
-SMTP_USER = "bierwebapp@gmail.com"
-SMTP_PASS = "pdfxqooaimtpejpw" # App-Passwort ist von der Email-adresse
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 
 
 # -----------------------------
@@ -147,26 +145,44 @@ def abschluss():
     for user in users:
         writer.writerow([user[0], user[1]])
 
-
     csv_bytes = output.getvalue().encode('utf-8')
     output.close()
 
-    # E-Mail vorbereiten
-    msg = EmailMessage()
-    msg['Subject'] = f"Monatsabschluss {datum}"
-    msg['From'] = SMTP_USER
-    msg['To'] = ADMIN_EMAIL
-    msg.set_content("Hier ist der Monatsabschluss im Anhang.")
-    msg.add_attachment(csv_bytes, maintype='text', subtype='csv', filename=filename)
+    # --- SendGrid Mail vorbereiten ---
+    encoded_file = base64.b64encode(csv_bytes).decode()
 
-    # E-Mail senden, Fehler abfangen
+    data = {
+        "personalizations": [{
+            "to": [{"email": ADMIN_EMAIL}]
+        }],
+        "from": {"email": ADMIN_EMAIL}, # Absender, kann auch ADMIN_EMAIL sein
+        "subject": f"Monatsabschluss {datum}",
+        "content": [{
+            "type": "text/plain",
+            "value": "Hier ist der Monatsabschluss im Anhang."
+        }],
+        "attachments": [{
+            "content": encoded_file,
+            "type": "text/csv",
+            "filename": filename
+        }]
+    }
+
     try:
-        with smtplib.SMTP("smtp.gmail.com", 465, timeout=10) as server:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
-            print("Monatsabschluss per E-Mail gesendet ✅")
+        response = requests.post(
+"https://api.sendgrid.com/v3/mail/send",
+            headers={
+                "Authorization": f"Bearer {SENDGRID_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json=data
+        )
+        if response.status_code == 202:
+            print("Monatsabschluss per SendGrid gesendet ✅")
+        else:
+            print("SendGrid Fehler:", response.status_code, response.text)
     except Exception as e:
-        print("Fehler beim E-Mail Versand:", e)
+        print("Fehler beim SendGrid Versand:", e)
 
     # Bierwerte zurücksetzen
     db.execute("UPDATE users SET bier = 0")
