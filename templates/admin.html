@@ -1,0 +1,36 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css')}}">
+
+<h2>Admin Bereich</h2>
+
+<table>
+     <tr>
+         <th>Name</th>
+         <th>Bier</th>
+         <th>Aktionen</th>
+     </tr>
+     {% for user in users %}
+    <tr>
+        <td>{{ user[1] }}</td>
+        <td>{{ user[2] }}</td>
+        <td>
+            <a class="add" href="/update_bier/{{ user[0] }}/add">+</a>
+            <a class="sub" href="/update_bier/{{ user[0] }}/sub">-</a>
+            <a class="reset" href="/reset_password/{{ user[0] }}">ResetPW</a>
+                <form action="/delete_user/{{ user[0] }}" method="POST" style="display:inline;"
+          onsubmit="return confirm('Wirklich löschen?');">
+        <button type="submit" style="background-color:#dc3545;">❌ Löschen</button>
+    </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<div style="text-align:center;">
+
+<a href="/download">Tabelle herunterladen</a>
+
+<a href="/abschluss" onclick="return confirm('Wirklich Monatsabschluss machen?')">Monatsabschluss Reset</a>
+
+<br><br>
+<a href="/dashboard">Zurück</a>
+</div>

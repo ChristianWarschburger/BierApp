@@ -1,0 +1,16 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css')}}">
+
+
+<div class="dashboard">
+<h2>Hallo {{ user }}</h2>
+
+<p>Getränke: {{ bier }}</p>
+
+<form action="/add_bier"><button type="submit">+1 Bier</button></form>
+
+<br>
+{% if user == "Admin" %}
+    <a href="/admin">AdminBereich</a>
+{% endif %}
+<a href="/logout">Logout</a>
+</div>
