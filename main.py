@@ -5,7 +5,7 @@ import csv
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
-
+from io import StringIO, BytesIO
 app = Flask(__name__)
 app.secret_key = "geheimer_schluessel"
 
@@ -140,26 +140,26 @@ def abschluss():
     datum = datetime.now().strftime("%Y-%m")
     filename = f"abschluss_{datum}.csv"
 
-    def generate():
-        yield "Name,Bier\n"
-        for user in users:
-            yield f"{user[0]},{user[1]}\n"
-
-            # CSV Inhalt generieren
-    csv_content = "Name,Bier\n"
+    # CSV im Speicher erstellen
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Name", "Bier"])
     for user in users:
-        csv_content += f"{user[0]},{user[1]}\n"
+        writer.writerow([user[0], user[1]])
 
-    #  E-Mail vorbereiten
+        
+    csv_bytes = output.getvalue().encode('utf-8')
+    output.close()
 
+    # E-Mail vorbereiten
     msg = EmailMessage()
     msg['Subject'] = f"Monatsabschluss {datum}"
     msg['From'] = SMTP_USER
     msg['To'] = ADMIN_EMAIL
     msg.set_content("Hier ist der Monatsabschluss im Anhang.")
-    msg.add_attachment(csv_content.encode('utf-8'), maintype='text', subtype='csv', filename=filename)
+    msg.add_attachment(csv_bytes, maintype='text', subtype='csv', filename=filename)
 
-    # E-Mail senden
+    # E-Mail senden, Fehler abfangen
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
@@ -169,17 +169,16 @@ def abschluss():
     except Exception as e:
         print("Fehler beim E-Mail Versand:", e)
 
-    #  resetten
+    # Bierwerte zurücksetzen
     db.execute("UPDATE users SET bier = 0")
     db.commit()
     db.close()
 
+    # CSV als Download zurückgeben
     return Response(
-        generate(),
+        csv_bytes,
         mimetype="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename=abschluss_{datum}.csv"
-        }
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 
