@@ -1,0 +1,2 @@
+# BierApp
+App für Strichliste 
