@@ -12,7 +12,7 @@ app.secret_key = "geheimer_schluessel"
 
 ADMIN_EMAIL = "christian.warschburger@gmx.de"
 #SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
-SENDGRID_API_KEY = "SK150a30dd95b17f10961d51638ab76977"
+
 
 
 # -----------------------------
