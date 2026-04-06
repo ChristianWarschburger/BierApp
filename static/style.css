@@ -31,6 +31,10 @@ a, Button {
     transition: 0.3s;
 }
 
+Button.a{
+    font-size: 28px;
+}
+
 /* Tabelle */
 
 table {
