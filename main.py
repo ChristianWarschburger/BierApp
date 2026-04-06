@@ -148,14 +148,18 @@ def abschluss():
     csv_bytes = output.getvalue().encode('utf-8')
     output.close()
 
-    # --- SendGrid Mail vorbereiten ---
+    # SendGrid Mail vorbereiten 
+    SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
+    if not SENDGRID_API_KEY:
+        print("kein SendGrid API-Key gefunden!")
+    
     encoded_file = base64.b64encode(csv_bytes).decode()
 
     data = {
         "personalizations": [{
             "to": [{"email": ADMIN_EMAIL}]
         }],
-        "from": {"email": ADMIN_EMAIL}, # Absender, kann auch ADMIN_EMAIL sein
+        "from": {"email": ADMIN_EMAIL}, 
         "subject": f"Monatsabschluss {datum}",
         "content": [{
             "type": "text/plain",
