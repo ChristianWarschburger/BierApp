@@ -11,7 +11,7 @@ app.secret_key = "geheimer_schluessel"
 
 ADMIN_EMAIL = "christian.warschburger@gmx.de"
 SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+SMTP_PORT = 465
 SMTP_USER = "bierwebapp@gmail.com"
 SMTP_PASS = "pdfxqooaimtpejpw" # App-Passwort ist von der Email-adresse
 
@@ -147,7 +147,7 @@ def abschluss():
     for user in users:
         writer.writerow([user[0], user[1]])
 
-        
+
     csv_bytes = output.getvalue().encode('utf-8')
     output.close()
 
@@ -161,8 +161,7 @@ def abschluss():
 
     # E-Mail senden, Fehler abfangen
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
+        with smtplib.SMTP("smtp.gmail.com", 465, timeout=10) as server:
             server.login(SMTP_USER, SMTP_PASS)
             server.send_message(msg)
             print("Monatsabschluss per E-Mail gesendet ✅")
