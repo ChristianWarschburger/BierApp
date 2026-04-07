@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, redirect, session, Response
-import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import csv
 from datetime import datetime
-from io import StringIO, BytesIO
+from io import StringIO
 import base64
 import requests
 import os
@@ -13,70 +12,82 @@ app = Flask(__name__)
 app.secret_key = "geheimer_schluessel"
 
 ADMIN_EMAIL = "christian.warschburger@gmx.de"
-#SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
-
-
-
 
 # -----------------------------
 # Datenbank Verbindung
 # -----------------------------
 def get_db():
-    conn = psycopg2.connect(
-        os.environ.get("DATABASE_URL"),
-        sslmode="require")
-    return conn
+    url = os.environ.get("DATABASE_URL")
+
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    return psycopg2.connect(url, sslmode="require")
 
 
 # -----------------------------
 # Datenbank erstellen
 # -----------------------------
 def init_db():
-    conn = psycopg2.connect(os.environ["DATABASE_URL"], sslmode='require')
-    cur = conn.cursor()
+    db = get_db()
+    cur = db.cursor()
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
             bier INTEGER DEFAULT 0
-        );
+        )
     """)
 
-    conn.commit()
+    db.commit()
     cur.close()
-    conn.close()
-    
-init_db()
-#------------------------------
-#Admin
-#------------------------------
+    db.close()
+
+
+# -----------------------------
+# ADMIN
+# -----------------------------
 @app.route("/admin")
 def admin():
     if "user" not in session or session["user"] != "Admin":
         return "kein Zugriff"
+
     db = get_db()
-    users = db.execute("SELECT id, username, bier FROM users").fetchall()
+    cur = db.cursor()
+
+    cur.execute("SELECT id, username, bier FROM users")
+    users = cur.fetchall()
+
+    cur.close()
     db.close()
+
     return render_template("admin.html", users=users)
 
-# Bier + und -
 
+# Bier + / -
 @app.route("/update_bier/<int:user_id>/<action>")
 def update_bier(user_id, action):
     if "user" not in session or session["user"] != "Admin":
         return "kein Zugriff"
+
     db = get_db()
+    cur = db.cursor()
+
     if action == "add":
-        db.execute("UPDATE users SET bier = bier +1 WHERE id = ?", (user_id,))
+        cur.execute("UPDATE users SET bier = bier + 1 WHERE id = %s", (user_id,))
     elif action == "sub":
-        db.execute("UPDATE users SET bier = bier - 1 WHERE id = ?", (user_id,))
+        cur.execute("UPDATE users SET bier = bier - 1 WHERE id = %s", (user_id,))
+
     db.commit()
+    cur.close()
     db.close()
+
     return redirect("/admin")
 
-# PW Reseten
 
+# Passwort reset
 @app.route("/reset_password/<int:user_id>", methods=["GET", "POST"])
 def reset_password(user_id):
     if "user" not in session or session["user"] != "Admin":
@@ -86,40 +97,55 @@ def reset_password(user_id):
         neues_passwort = request.form["password"]
 
         db = get_db()
-        db.execute(
-            "UPDATE users SET password = ? WHERE id = ?",
+        cur = db.cursor()
+
+        cur.execute(
+            "UPDATE users SET password = %s WHERE id = %s",
             (generate_password_hash(neues_passwort), user_id)
         )
+
         db.commit()
+        cur.close()
         db.close()
 
         return redirect("/admin")
 
     return render_template("reset_password.html", user_id=user_id)
 
-# User löschen
 
+# User löschen
 @app.route("/delete_user/<int:user_id>", methods=["POST"])
 def delete_user(user_id):
     if "user" not in session or session["user"] != "Admin":
         return "Kein Zugriff"
 
     db = get_db()
-    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    cur = db.cursor()
+
+    cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+
     db.commit()
+    cur.close()
     db.close()
 
     return redirect("/admin")
 
-#Download Tabelle
 
+# -----------------------------
+# DOWNLOAD
+# -----------------------------
 @app.route("/download")
 def download():
     if "user" not in session or session["user"] != "Admin":
         return "Kein Zugriff"
 
     db = get_db()
-    users = db.execute("SELECT username, bier FROM users").fetchall()
+    cur = db.cursor()
+
+    cur.execute("SELECT username, bier FROM users")
+    users = cur.fetchall()
+
+    cur.close()
     db.close()
 
     dateiname = datetime.now().strftime("%Y%m%d")
@@ -135,56 +161,53 @@ def download():
         headers={"Content-Disposition": f"attachment;filename=bierliste_{dateiname}.csv"}
     )
 
-#Monatsabschluss
 
+# -----------------------------
+# MONATSABSCHLUSS
+# -----------------------------
 @app.route("/abschluss")
 def abschluss():
     if "user" not in session or session["user"] != "Admin":
         return "Kein Zugriff"
 
     db = get_db()
-    users = db.execute("SELECT username, bier FROM users").fetchall()
+    cur = db.cursor()
 
-    # Datum für Dateiname
+    cur.execute("SELECT username, bier FROM users")
+    users = cur.fetchall()
+
     datum = datetime.now().strftime("%Y-%m")
     filename = f"abschluss_{datum}.csv"
 
-    # CSV im Speicher erstellen
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(["Name", "Bier"])
+
     for user in users:
         writer.writerow([user[0], user[1]])
 
     csv_bytes = output.getvalue().encode('utf-8')
     output.close()
 
-    # SendGrid Mail vorbereiten 
+    # SendGrid
     SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
-    if not SENDGRID_API_KEY:
-        print("kein SendGrid API-Key gefunden!")
-    
-    encoded_file = base64.b64encode(csv_bytes).decode()
 
-    data = {
-        "personalizations": [{
-            "to": [{"email": ADMIN_EMAIL}]
-        }],
-        "from": {"email": ADMIN_EMAIL}, 
-        "subject": f"Monatsabschluss {datum}",
-        "content": [{
-            "type": "text/plain",
-            "value": "Hier ist der Monatsabschluss im Anhang."
-        }],
-        "attachments": [{
-            "content": encoded_file,
-            "type": "text/csv",
-            "filename": filename
-        }]
-    }
+    if SENDGRID_API_KEY:
+        encoded_file = base64.b64encode(csv_bytes).decode()
 
-    try:
-        response = requests.post(
+        data = {
+            "personalizations": [{"to": [{"email": ADMIN_EMAIL}]}],
+            "from": {"email": ADMIN_EMAIL},
+            "subject": f"Monatsabschluss {datum}",
+            "content": [{"type": "text/plain", "value": "CSV im Anhang"}],
+            "attachments": [{
+                "content": encoded_file,
+                "type": "text/csv",
+                "filename": filename
+            }]
+        }
+
+        requests.post(
 "https://api.sendgrid.com/v3/mail/send",
             headers={
                 "Authorization": f"Bearer {SENDGRID_API_KEY}",
@@ -192,19 +215,14 @@ def abschluss():
             },
             json=data
         )
-        if response.status_code == 202:
-            print("Monatsabschluss per SendGrid gesendet ✅")
-        else:
-            print("SendGrid Fehler:", response.status_code, response.text)
-    except Exception as e:
-        print("Fehler beim SendGrid Versand:", e)
 
-    # Bierwerte zurücksetzen
-    db.execute("UPDATE users SET bier = 0")
+    # Reset
+    cur.execute("UPDATE users SET bier = 0")
     db.commit()
+
+    cur.close()
     db.close()
 
-    # CSV als Download zurückgeben
     return Response(
         csv_bytes,
         mimetype="text/csv",
@@ -222,10 +240,12 @@ def login():
         password = request.form["password"]
 
         db = get_db()
-        user = db.execute(
-            "SELECT * FROM users WHERE username = ?",
-            (username,)
-        ).fetchone()
+        cur = db.cursor()
+
+        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
+
+        cur.close()
         db.close()
 
         if user and check_password_hash(user[2], password):
@@ -238,7 +258,7 @@ def login():
 
 
 # -----------------------------
-# REGISTRIEREN
+# REGISTER
 # -----------------------------
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -248,12 +268,17 @@ def register():
 
         try:
             db = get_db()
-            db.execute(
-                "INSERT INTO users (username, password) VALUES (?, ?)",
+            cur = db.cursor()
+
+            cur.execute(
+                "INSERT INTO users (username, password) VALUES (%s, %s)",
                 (username, password)
             )
+
             db.commit()
+            cur.close()
             db.close()
+
             return redirect("/")
         except:
             return "Benutzer existiert schon"
@@ -270,10 +295,15 @@ def dashboard():
         return redirect("/")
 
     db = get_db()
-    user = db.execute(
-        "SELECT * FROM users WHERE username = ?",
+    cur = db.cursor()
+
+    cur.execute(
+        "SELECT * FROM users WHERE username = %s",
         (session["user"],)
-    ).fetchone()
+    )
+    user = cur.fetchone()
+
+    cur.close()
     db.close()
 
     if not user:
@@ -291,11 +321,15 @@ def dashboard():
 def add_bier():
     if "user" in session:
         db = get_db()
-        db.execute(
-            "UPDATE users SET bier = bier + 1 WHERE username = ?",
+        cur = db.cursor()
+
+        cur.execute(
+            "UPDATE users SET bier = bier + 1 WHERE username = %s",
             (session["user"],)
         )
+
         db.commit()
+        cur.close()
         db.close()
 
     return redirect("/dashboard")
@@ -313,6 +347,7 @@ def logout():
 # -----------------------------
 # START
 # -----------------------------
+init_db()
+
 if __name__ == "__main__":
-    
     app.run(debug=True)
