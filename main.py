@@ -15,6 +15,7 @@ app.secret_key = "geheimer_schluessel"
 ADMIN_EMAIL = "christian.warschburger@gmx.de"
 #SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 
+init_db()
 
 
 # -----------------------------
@@ -31,15 +32,17 @@ def get_db():
 # Datenbank erstellen
 # -----------------------------
 def init_db():
-    db = get_db()
-    db.execute("""
+    conn = psycopg2.connect(os.environ["DATABASE_URL"], sslmode='require')
+    cur = conn.cursor()
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
             bier INTEGER DEFAULT 0
-        )
+        );
     """)
+
     conn.commit()
     cur.close()
     conn.close()
