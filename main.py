@@ -15,7 +15,7 @@ app.secret_key = "geheimer_schluessel"
 ADMIN_EMAIL = "christian.warschburger@gmx.de"
 #SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 
-init_db()
+
 
 
 # -----------------------------
@@ -47,7 +47,7 @@ def init_db():
     cur.close()
     conn.close()
     
-
+init_db()
 #------------------------------
 #Admin
 #------------------------------
