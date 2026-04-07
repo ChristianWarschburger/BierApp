@@ -7,6 +7,8 @@ from io import StringIO, BytesIO
 import base64
 import requests
 import os
+import psycopg2
+
 app = Flask(__name__)
 app.secret_key = "geheimer_schluessel"
 
@@ -19,7 +21,10 @@ ADMIN_EMAIL = "christian.warschburger@gmx.de"
 # Datenbank Verbindung
 # -----------------------------
 def get_db():
-    return sqlite3.connect("users.db")
+    conn = psycopg2.connect(
+        os.environ.get("DATABASE_URL"),
+        sslmode="require")
+    return conn
 
 
 # -----------------------------
@@ -35,8 +40,10 @@ def init_db():
             bier INTEGER DEFAULT 0
         )
     """)
-    db.commit()
-    db.close()
+    conn.commit()
+    cur.close()
+    conn.close()
+    
 
 #------------------------------
 #Admin
