@@ -1,4 +1,22 @@
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css')}}">
+<!DOCTYPE html>
+<head>
+<!-- Favicon / Browser-Tab -->
+<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='icon-512.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icon-512.png') }}">
+<link rel="icon" type="image/png" sizes="96x96" href="{{ url_for('static', filename='icon-512.png') }}">
+
+<!-- iPhone / iPad Home-Screen -->
+<link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icon-512.png') }}">
+
+<!-- Optional für Progressive Web App (PWA) -->
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css')}}">   
+    
+</head>
+
+<body>
+
 
 <br><br><br><br><br><br>
 
@@ -11,3 +29,4 @@
     <a href="/register">Registrieren</a>
 </form>
 
+</body>
